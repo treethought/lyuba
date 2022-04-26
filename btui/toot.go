@@ -6,19 +6,8 @@ import (
 
 	md "github.com/JohannesKaufmann/html-to-markdown"
 	"github.com/charmbracelet/glamour"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/kyokomi/emoji"
 	"github.com/mattn/go-mastodon"
-)
-
-var (
-	headerStyle  = lipgloss.NewStyle().Bold(true).BorderBottom(true).Align(lipgloss.Center)
-	contentStyle = lipgloss.NewStyle().Align(lipgloss.Center)
-	// itemStyle         = lipgloss.NewStyle().PaddingLeft(4)
-	// selectedItemStyle = lipgloss.NewStyle().PaddingLeft(2).Foreground(lipgloss.Color("170"))
-	// paginationStyle   = list.DefaultStyles().PaginationStyle.PaddingLeft(4)
-	// helpStyle         = list.DefaultStyles().HelpStyle.PaddingLeft(4).PaddingBottom(1)
-	// quitTextStyle     = lipgloss.NewStyle().Margin(1, 0, 2, 4)
 )
 
 type Toot struct {
@@ -33,7 +22,7 @@ func (t *Toot) Title() string {
 }
 
 func (t *Toot) Description() string {
-	return t.View()
+	return t.Content()
 }
 
 func formatContent(html string) string {
@@ -98,6 +87,6 @@ func (m *Toot) View() string {
 		head = emoji.Sprintf("%s  :repeat_button:@%s", head, m.status.Reblog.Account.DisplayName)
 	}
 
-	return fmt.Sprintf("%s\n%s", headerStyle.Render(head), content)
+	return fmt.Sprintf("%s\n%s", head, content)
 
 }

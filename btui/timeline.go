@@ -6,6 +6,7 @@ import (
 	"log"
 	"os/exec"
 	"runtime"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
@@ -15,16 +16,19 @@ import (
 	"github.com/mattn/go-mastodon"
 )
 
-var docStyle = lipgloss.NewStyle().Margin(1, 2)
+var timelineStyle = lipgloss.NewStyle().BorderStyle(lipgloss.NormalBorder())
 
 const listHeight = 14
 
 var (
-	tootItemStyle     = lipgloss.NewStyle().BorderStyle(lipgloss.NormalBorder()).Padding(0, 1, 0)
+	tootItemStyle     = lipgloss.NewStyle().BorderStyle(lipgloss.NormalBorder()).Padding(0, 0, 0)
 	selectedItemStyle = tootItemStyle.Copy().BorderForeground(lipgloss.Color("170"))
 	paginationStyle   = list.DefaultStyles().PaginationStyle.PaddingLeft(4)
 	helpStyle         = list.DefaultStyles().HelpStyle.PaddingLeft(4).PaddingBottom(1)
 	quitTextStyle     = lipgloss.NewStyle().Margin(1, 0, 2, 4)
+
+	headerStyle  = lipgloss.NewStyle().Bold(true).BorderStyle(lipgloss.NormalBorder()).Align(lipgloss.Center)
+	contentStyle = lipgloss.NewStyle().BorderStyle(lipgloss.NormalBorder()).Align(lipgloss.Center)
 )
 
 type TimelineType int
@@ -91,24 +95,26 @@ type Timeline struct {
 	// inputHandler *cbind.Configuration
 }
 
-type itemDelegate struct{}
+type itemDelegate struct {
+	del list.DefaultDelegate
+}
 
-func (d itemDelegate) Height() int                               { return 2 }
-func (d itemDelegate) Spacing() int                              { return 0 }
-func (d itemDelegate) Update(msg tea.Msg, m *list.Model) tea.Cmd { return nil }
+func (d itemDelegate) Height() int                               { return d.del.Height() }
+func (d itemDelegate) Spacing() int                              { return d.del.Spacing() }
+func (d itemDelegate) Update(msg tea.Msg, m *list.Model) tea.Cmd { return d.del.Update(msg, m) }
 
 func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
-	i, ok := listItem.(*Toot)
-	if !ok {
-		return
-	}
+	// perform default render
+	var b strings.Builder
+	d.del.Render(&b, m, index, listItem)
 
-	s := i.View()
+	// then apply our styles to the rendered item
+	s := b.String()
 
-	fn := tootItemStyle.Render
+	fn := tootItemStyle.Copy().Render
 	if index == m.Index() {
 		fn = func(s string) string {
-			return selectedItemStyle.Render(s)
+			return selectedItemStyle.Copy().Render(s)
 		}
 	}
 
@@ -117,8 +123,13 @@ func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 
 func NewTimeline(app *App, ttype TimelineType) *Timeline {
 	items := []list.Item{}
+
+	delegate := itemDelegate{
+		del: list.NewDefaultDelegate(),
+	}
+
 	t := &Timeline{
-		list:  list.New(items, itemDelegate{}, 0, 0),
+		list:  list.New(items, delegate, 0, 10),
 		app:   app,
 		ttype: ttype,
 	}
@@ -171,7 +182,7 @@ func (m *Timeline) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 		}
 
 	case tea.WindowSizeMsg:
-		h, v := docStyle.GetFrameSize()
+		h, v := timelineStyle.GetFrameSize()
 		m.list.SetSize(msg.Width-h, msg.Height-v)
 
 	case TimelineMsg:
