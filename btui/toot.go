@@ -15,7 +15,9 @@ type Toot struct {
 	app    *App
 }
 
-func (t *Toot) FilterValue() string { return "" }
+func (t *Toot) FilterValue() string {
+	return fmt.Sprintf("%s %s %s", t.status.Account.Username, t.status.Account.DisplayName, t.status.Content)
+}
 
 func (t *Toot) Title() string {
 	return t.header()

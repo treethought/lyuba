@@ -16,49 +16,20 @@ import (
 	"github.com/mattn/go-mastodon"
 )
 
-var timelineStyle = lipgloss.NewStyle().BorderStyle(lipgloss.NormalBorder())
+var timelineStyle = lipgloss.NewStyle() //.BorderStyle(lipgloss.NormalBorder())
 
 const listHeight = 14
 
 var (
-	tootItemStyle     = lipgloss.NewStyle().BorderStyle(lipgloss.NormalBorder()).Padding(0, 0, 0)
+	tootItemStyle     = lipgloss.NewStyle().BorderStyle(lipgloss.NormalBorder()).Padding(0, 0, 0).Margin(0)
 	selectedItemStyle = tootItemStyle.Copy().BorderForeground(lipgloss.Color("170"))
 	paginationStyle   = list.DefaultStyles().PaginationStyle.PaddingLeft(4)
 	helpStyle         = list.DefaultStyles().HelpStyle.PaddingLeft(4).PaddingBottom(1)
 	quitTextStyle     = lipgloss.NewStyle().Margin(1, 0, 2, 4)
 
-	headerStyle  = lipgloss.NewStyle().Bold(true).BorderStyle(lipgloss.NormalBorder()).Align(lipgloss.Center)
-	contentStyle = lipgloss.NewStyle().BorderStyle(lipgloss.NormalBorder()).Align(lipgloss.Center)
+	headerStyle  = lipgloss.NewStyle().Bold(true).BorderBottom(true).Align(lipgloss.Center)
+	contentStyle = lipgloss.NewStyle().Align(lipgloss.Center)
 )
-
-type TimelineType int
-
-type TimelineMsg struct {
-	action string
-	toots  []*mastodon.Status
-}
-
-const (
-	TimelineHome TimelineType = iota
-	TimelineLocal
-	TimelineFederated
-	TimelineProfile
-	TimelineLikes
-	TimelineTag
-	TimelineMedia
-
-	TimelineTootContext
-)
-
-var TimelineTypes = []TimelineType{
-	TimelineHome,
-	TimelineLocal,
-	TimelineFederated,
-	TimelineProfile,
-	TimelineLikes,
-	TimelineTag,
-	TimelineMedia,
-}
 
 type timelineKeyMap struct {
 	refresh  key.Binding
@@ -82,10 +53,6 @@ var defaultTimelineKeyMap = timelineKeyMap{
 	),
 }
 
-func (t TimelineType) String() string {
-	return [...]string{"home", "local", "federated", "profile", "likes", "tags", "media"}[t]
-}
-
 type Timeline struct {
 	list   list.Model
 	cursor int
@@ -99,7 +66,7 @@ type itemDelegate struct {
 	del list.DefaultDelegate
 }
 
-func (d itemDelegate) Height() int                               { return d.del.Height() }
+func (d itemDelegate) Height() int                               { return 3 } // d.del.Height() }
 func (d itemDelegate) Spacing() int                              { return d.del.Spacing() }
 func (d itemDelegate) Update(msg tea.Msg, m *list.Model) tea.Cmd { return d.del.Update(msg, m) }
 
@@ -111,10 +78,12 @@ func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 	// then apply our styles to the rendered item
 	s := b.String()
 
-	fn := tootItemStyle.Copy().Render
+	width := timelineStyle.GetWidth()
+
+	fn := tootItemStyle.Copy().Width(width).Render
 	if index == m.Index() {
 		fn = func(s string) string {
-			return selectedItemStyle.Copy().Render(s)
+			return selectedItemStyle.Copy().Width(width).Render(s)
 		}
 	}
 
@@ -128,12 +97,19 @@ func NewTimeline(app *App, ttype TimelineType) *Timeline {
 		del: list.NewDefaultDelegate(),
 	}
 
+	delegate.del.Styles.NormalTitle = headerStyle
+	delegate.del.Styles.SelectedTitle = headerStyle
+
+	delegate.del.Styles.NormalDesc = contentStyle.Inline((true))
+	delegate.del.Styles.SelectedDesc = contentStyle
+
 	t := &Timeline{
 		list:  list.New(items, delegate, 0, 10),
 		app:   app,
 		ttype: ttype,
 	}
 	t.list.Title = ttype.String()
+	t.list.SetHeight(timelineStyle.GetHeight())
 	t.list.AdditionalFullHelpKeys = func() []key.Binding {
 		return []key.Binding{
 			defaultTimelineKeyMap.favorite,
@@ -176,14 +152,21 @@ func (m *Timeline) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 			return m, tea.Quit
 		}
 
-		model, cmd = m.handleKeyBinding(msg)
-		if cmd != nil {
-			return model, cmd
+		if !m.list.SettingFilter() {
+
+			model, cmd = m.handleKeyBinding(msg)
+			if cmd != nil {
+				return model, cmd
+			}
 		}
 
 	case tea.WindowSizeMsg:
-		h, v := timelineStyle.GetFrameSize()
-		m.list.SetSize(msg.Width-h, msg.Height-v)
+		// h, v := timelineStyle.GetFrameSize()
+		// m.list.SetSize(msg.Width-h, msg.Height-v)
+		m.list.SetSize(msg.Width, msg.Height)
+
+	case ErrorMsg:
+		return m, m.list.NewStatusMessage(fmt.Sprintf("failed to %s: %s", msg.action, msg.msg))
 
 	case TimelineMsg:
 
@@ -276,15 +259,6 @@ func (t *Timeline) handleBoost(ev *tcell.EventKey) *tcell.EventKey {
 	return nil
 }
 
-func (t *Timeline) handleOpen(ev *tcell.EventKey) *tcell.EventKey {
-	// t.app.Notify("Opening in browser")
-	toot := t.GetCurrentToot()
-	status := toot.status
-	openbrowser(status.URL)
-	return nil
-
-}
-
 func (t *Timeline) SetTimeline(ttype TimelineType) {
 	t.ttype = ttype
 }
@@ -313,6 +287,7 @@ func (t *Timeline) SetCurrentToot(toot *Toot) {
 func (t *Timeline) OpenCmd() tea.Msg {
 	toot := t.GetCurrentToot()
 	if toot == nil {
+		return ErrorMsg{action: "get toot", msg: "selected item not a toot"}
 		return nil
 	}
 	status := toot.status
@@ -349,19 +324,6 @@ func (t *Timeline) RefreshCmd() tea.Msg {
 		toots: toots,
 	}
 
-}
-
-func (t *Timeline) Refresh() {
-	// selected := t.list.Cursor
-
-	// toots := t.app.client.GetTimeline(t.ttype.String())
-	// t.fillToots(toots)
-	// title := fmt.Sprintf(" Timeline - %s ", strings.Title(t.ttype.String()))
-	// t.SetTitle(title)
-	// t.SetTitleColor(tcell.ColorLightCyan)
-	// if selected != nil {
-	// 	t.SetCurrentToot(selected)
-	// }
 }
 
 func (t *Timeline) fillToots(toots []*mastodon.Status) {
