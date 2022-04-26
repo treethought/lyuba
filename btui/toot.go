@@ -5,6 +5,7 @@ import (
 	"log"
 
 	md "github.com/JohannesKaufmann/html-to-markdown"
+	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/kyokomi/emoji"
 	"github.com/mattn/go-mastodon"
@@ -36,17 +37,18 @@ func (t *Toot) Description() string {
 }
 
 func formatContent(html string) string {
-	// opts := &md.Options{}
 	converter := md.NewConverter("", true, nil)
 
 	mdContent, err := converter.ConvertString(html)
 	if err != nil {
 		log.Fatal(err)
 	}
-	return mdContent
 
-	// result := markdown.Render(mdContent, 80, 6)
-	// return string(result)
+	out, err := glamour.Render(mdContent, "dark")
+	if err != nil {
+		return mdContent
+	}
+	return out
 
 }
 
