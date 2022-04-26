@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"github.com/treethought/mammut/ui"
+	"github.com/treethought/mammut/btui"
 
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/spf13/viper"
@@ -18,7 +18,8 @@ var rootCmd = &cobra.Command{
 	Use:   "masto",
 	Short: "mastodon tui",
 	Run: func(cmd *cobra.Command, args []string) {
-		app := ui.New()
+		app := btui.NewApp()
+		// app := ui.New()
 		app.Start()
 	},
 }
