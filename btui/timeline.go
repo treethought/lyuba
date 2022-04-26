@@ -57,7 +57,8 @@ var TimelineTypes = []TimelineType{
 }
 
 type timelineKeyMap struct {
-	refresh key.Binding
+	refresh  key.Binding
+	favorite key.Binding
 	// Down key.Binding
 }
 
@@ -66,10 +67,10 @@ var defaultTimelineKeyMap = timelineKeyMap{
 		key.WithKeys("r"),                     // actual keybindings
 		key.WithHelp("r", "refresh timeline"), // corresponding help text
 	),
-	// Down: key.NewBinding(
-	// 	key.WithKeys("j", "down"),
-	// 	key.WithHelp("↓/j", "move down"),
-	// ),
+	favorite: key.NewBinding(
+		key.WithKeys("f"),
+		key.WithHelp("f", "favorite"),
+	),
 }
 
 func (t TimelineType) String() string {
@@ -97,9 +98,7 @@ func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 		return
 	}
 
-	s := fmt.Sprintf("%d. %s", index+1, i.View())
-
-	// str := i.View()
+	s := i.View()
 
 	fn := tootItemStyle.Render
 	if index == m.Index() {
@@ -109,25 +108,22 @@ func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 	}
 
 	fmt.Fprintf(w, fn(s))
-
-	// fmt.Fprintf(w, i.View())
 }
 
-func NewTimeline(app *App, toots []*mastodon.Status, ttype TimelineType) *Timeline {
+func NewTimeline(app *App, ttype TimelineType) *Timeline {
 	items := []list.Item{}
 	t := &Timeline{
 		list:  list.New(items, itemDelegate{}, 0, 0),
-		Toots: toots,
 		app:   app,
+		ttype: ttype,
 	}
 	t.list.Title = ttype.String()
-	t.fillToots(toots)
 	t.list.Select(0)
 	return t
 }
 
 func (m *Timeline) Init() tea.Cmd {
-	return nil
+	return m.RefreshCmd
 }
 
 func (m *Timeline) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
@@ -139,7 +135,14 @@ func (m *Timeline) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 		switch {
 		case key.Matches(msg, defaultTimelineKeyMap.refresh):
 			var cmds []tea.Cmd
-			cmds = append(cmds, m.list.NewStatusMessage("refreshing"), m.RefreshCmd)
+
+			cmds = append(cmds, m.list.SetItems([]list.Item{}), m.list.NewStatusMessage("refreshing"), m.RefreshCmd)
+			return m, tea.Batch(cmds...)
+
+		case key.Matches(msg, defaultTimelineKeyMap.favorite):
+			var cmds []tea.Cmd
+
+			cmds = append(cmds, m.list.SetItems([]list.Item{}), m.list.NewStatusMessage("favoriting toot"), m.RefreshCmd)
 			return m, tea.Batch(cmds...)
 		}
 	case tea.WindowSizeMsg:
@@ -279,6 +282,29 @@ func (t *Timeline) SetCurrentToot(toot *Toot) {
 	// 		t.SetCurrentItem(i)
 	// 	}
 	// }
+}
+
+func (t *Timeline) FavoriteCmd() tea.Msg {
+	ref := t.list.SelectedItem()
+	toot, ok := ref.(*Toot)
+	if !ok {
+		return nil
+	}
+	status := toot.status
+
+	if toot.IsFavorite() {
+		t.app.client.Unlike(status)
+		return tea.Batch(
+			t.list.NewStatusMessage("unfavoriting"),
+			t.RefreshCmd,
+		)
+	}
+
+	t.app.client.Like(status)
+	return tea.Batch(
+		t.list.NewStatusMessage("favoriting toot!"),
+		t.RefreshCmd,
+	)
 }
 
 func (t *Timeline) RefreshCmd() tea.Msg {
