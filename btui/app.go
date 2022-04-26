@@ -22,8 +22,7 @@ func NewApp() *App {
 
 	app.client = mastodon.NewClient()
 
-	toots := app.client.GetTimeline(TimelineHome.String())
-	timeline := NewTimeline(app, toots, TimelineHome)
+	timeline := NewTimeline(app, TimelineHome)
 
 	app.boba.Add("timeline", timeline)
 
