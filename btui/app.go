@@ -22,12 +22,20 @@ func NewApp() *App {
 
 	app.client = mastodon.NewClient()
 
+	box := boba.NewBox("vertical", 100, 100)
 	timeline := NewTimeline(app, TimelineHome)
 
-	app.boba.Add("timeline", timeline)
+	status := NewStatus(app, nil)
+
+	box.AddNode(timeline, 100, 80)
+	box.AddNode(status, 100, 20)
+
+	app.boba.Add("box", box)
+	app.boba.Register("status", status)
+	app.boba.Register("timeline", timeline)
 
 	// begin with input prompting for url
-	app.boba.SetFocus("timeline")
+	app.boba.SetFocus("box")
 	return app
 
 }
