@@ -2,8 +2,6 @@ module github.com/treethought/mammut
 
 go 1.15
 
-replace github.com/treethought/boba => /home/csweeney/projects/boba
-
 require (
 	github.com/JohannesKaufmann/html-to-markdown v1.2.0
 	github.com/charmbracelet/bubbles v0.10.3
@@ -17,7 +15,7 @@ require (
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/spf13/cobra v1.1.1
 	github.com/spf13/viper v1.7.1
-	github.com/treethought/boba v0.0.2
+	github.com/treethought/boba v0.0.3
 	github.com/yuin/goldmark v1.4.11 // indirect
 	golang.org/x/image v0.0.0-20220413100746-70e8d0d3baa9 // indirect
 	golang.org/x/net v0.0.0-20220420153159-1850ba15e1be // indirect
