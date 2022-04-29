@@ -3,25 +3,27 @@ package btui
 import (
 	"fmt"
 	"image/color"
-	"log"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/eliukblau/pixterm/pkg/ansimage"
 	"github.com/kyokomi/emoji"
 	"github.com/mattn/go-mastodon"
-	"gitlab.com/tslocum/cview"
 )
 
-var statusStyle = lipgloss.NewStyle().BorderStyle(lipgloss.NormalBorder())
+var statusStyle = lipgloss.NewStyle().BorderStyle(lipgloss.NormalBorder()).Padding(0).MarginBackground(lipgloss.Color("300"))
+
+const useHighPerformanceRenderer = true
+
+const img = "https://i.redd.it/65fmdbh1ja951.jpg"
 
 type Status struct {
 	status *mastodon.Status
 	vp     viewport.Model
 	app    *App
+	// img    *imgcat.Model
 }
 
 // func formatContent(html string) string {
@@ -58,21 +60,6 @@ func (m *Status) IsFavorite() bool {
 
 }
 
-func (m *Status) header() string {
-	header := m.status.Account.DisplayName
-
-	if m.IsFavorite() {
-		header += emoji.Sprint(" :heart:")
-	} else {
-		header += emoji.Sprint(" :white_heart:")
-	}
-
-	if m.status.Reblog != nil {
-		header = emoji.Sprintf("%s  || :repeat_button:@%s", header, m.status.Reblog.Account.DisplayName)
-	}
-	return header
-}
-
 func (t *Status) Content() string {
 	return formatContent(t.status.Content)
 }
@@ -83,6 +70,7 @@ func NewStatus(app *App, status *mastodon.Status) *Status {
 		status: status,
 		vp:     viewport.New(0, 0),
 		app:    app,
+		// img:    nil,
 	}
 
 	return t
@@ -93,10 +81,9 @@ func (m *Status) View() string {
 		return "no status"
 	}
 
-	mdContent := formatContent(m.status.Content)
+	// mdContent := formatContent(m.status.Content)
 	// lines := strings.Split(mdContent, "\n")
-	return statusStyle.Render(mdContent)
-	// return m.vp.View()
+	return statusStyle.Render(m.render())
 	return m.vp.View()
 	head := m.status.Account.DisplayName
 	content := formatContent(m.status.Content)
@@ -109,50 +96,8 @@ func (m *Status) View() string {
 
 }
 
-func (m *Status) updateStatus(status *mastodon.Status) {
-	m.vp.SetContent("yoo")
-	viewport.Sync(m.vp)
-
-	m.status = status
-
-	mdContent := formatContent(status.Content)
-
-	// tr, err := glamour.NewTermRenderer(glamour.WithEmoji())
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-
-	g, err := glamour.NewTermRenderer(glamour.WithAutoStyle())
-	if err != nil {
-		log.Fatal(err)
-	}
-	mdAnsi, err := g.Render(mdContent)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	content := cview.TranslateANSI(mdAnsi)
-	m.vp.SetContent(content)
-
-	w, h := m.vp.Width, m.vp.Width
-
-	for _, m := range m.status.MediaAttachments {
-		if m.Type == "image" {
-
-			w = w - 5
-			h = h - len(strings.Split(content, "\n")) - 5
-
-			img := translateImage(m.URL, w, h)
-			content = fmt.Sprintf("%s\n%s", content, img)
-		}
-	}
-
-	ct := status.CreatedAt
-
-	created := fmt.Sprintf("%02d:%02d %d-%02d-%02d",
-		ct.Hour(), ct.Minute(),
-		ct.Year(), ct.Month(), ct.Day())
-
+func (m Status) buildEngagements() string {
+	status := m.status
 	replies := emoji.Sprintf(":speech_balloon: %d", status.RepliesCount)
 	boosts := emoji.Sprintf(":repeat_button: %d", status.ReblogsCount)
 
@@ -163,40 +108,80 @@ func (m *Status) updateStatus(status *mastodon.Status) {
 		likes += emoji.Sprintf(":white_heart: %d", status.FavouritesCount)
 	}
 
-	info := strings.Join([]string{replies, boosts, likes}, " | ")
+	return strings.Join([]string{replies, boosts, likes}, " | ")
+}
 
-	avatar := translateImage(status.Account.AvatarStatic, 4, 8)
+func (m Status) buildheader() string {
+	content := ""
+	status := m.status
+	ct := status.CreatedAt
 
-	content = fmt.Sprintf("%s\n%s",
-		content,
-		lipgloss.NewStyle().Align(lipgloss.Left).Render(status.Account.DisplayName),
+	created := fmt.Sprintf("%02d:%02d %d-%02d-%02d",
+		ct.Hour(), ct.Minute(),
+		ct.Year(), ct.Month(), ct.Day())
+
+	accountStyle := lipgloss.NewStyle().Align(lipgloss.Left)
+	boostStyle := lipgloss.NewStyle().Align(lipgloss.Right).Padding(0, 0, 0, 2).Foreground(lipgloss.Color("128"))
+	createdStyle := lipgloss.NewStyle().Align(lipgloss.Right).Padding(0, 0, 0, 2)
+
+	avatar := translateImage(status.Account.AvatarStatic, 8, 8)
+
+	content = lipgloss.JoinHorizontal(lipgloss.Center,
+		accountStyle.Render(avatar),
+		accountStyle.Render(status.Account.DisplayName),
 	)
-	content = fmt.Sprintf("%s\n%s",
+
+	if m.status.Reblog != nil {
+		boostContent := emoji.Sprintf(" || :repeat_button:@%s", m.status.Reblog.Account.DisplayName)
+
+		content = lipgloss.JoinHorizontal(lipgloss.Center,
+			content,
+			boostStyle.Render(boostContent),
+		)
+	}
+
+	content = lipgloss.JoinHorizontal(lipgloss.Center,
 		content,
-		lipgloss.NewStyle().Align(lipgloss.Left).Render(avatar),
-	)
-	content = fmt.Sprintf("%s\n%s",
-		content,
-		lipgloss.NewStyle().Align(lipgloss.Left).Render(created),
-	)
-	content = fmt.Sprintf("%s\n%s",
-		content,
-		lipgloss.NewStyle().Align(lipgloss.Left).Render(info),
+		createdStyle.Render(created),
 	)
 
-	m.vp.SetContent(content)
+	return content
+}
 
-	// 	f.AddText(status.Account.DisplayName, true, cview.AlignLeft, tcell.ColorWhite)
-	// 	f.AddText(status.Account.Acct, true, cview.AlignCenter, tcell.ColorWhite)
-	// 	f.AddText(status.Account.Username, true, cview.AlignRight, tcell.ColorWhite)
-	// 	f.AddText(avatar, true, cview.AlignLeft, tcell.ColorWhite)
-	// 	f.AddText(created, true, cview.AlignCenter, tcell.ColorWhite)
+func (m Status) buildMedia() string {
+	mediaStyle := lipgloss.NewStyle().Align(lipgloss.Center)
+	// w, h := m.vp.Width, m.vp.Width
 
-	// 	f.AddText(info, false, cview.AlignCenter, tcell.ColorWhite)
-	// 	if status.Reblog != nil {
-	// 		boosted := fmt.Sprintf("Boosted from %s", status.Reblog.Account.DisplayName)
-	// 		f.AddText(boosted, false, cview.AlignRight, tcell.ColorLightCyan)
-	// 	}
+	content := ""
+	for _, m := range m.status.MediaAttachments {
+		if m.Type == "image" {
+
+			// w = w - 5
+			// h = h - len(strings.Split(content, "\n")) - 5
+
+			img := translateImage(m.URL, 10, 10)
+			content = fmt.Sprintf("%s\n%s", content, img)
+		}
+	}
+	return mediaStyle.Render(content)
+}
+
+func (m *Status) render() string {
+	status := m.status
+
+	header := m.buildheader()
+	media := m.buildMedia()
+	content := formatContent(status.Content)
+
+	content = lipgloss.JoinVertical(lipgloss.Top, header, media, content)
+
+	info := m.buildEngagements()
+
+	content = lipgloss.JoinVertical(lipgloss.Center,
+		content,
+		info,
+	)
+	return content
 
 }
 
@@ -205,19 +190,27 @@ func (m *Status) Init() tea.Cmd {
 }
 
 func (m *Status) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	cmds := []tea.Cmd{}
+	if useHighPerformanceRenderer {
+		// Render (or re-render) the whole viewport. Necessary both to
+		// initialize the viewport and when the window is resized.
+		//
+		// This is needed for high-performance rendering only.
+		cmds = append(cmds, viewport.Sync(m.vp))
+	}
 	switch msg := msg.(type) {
 
 	case StatusMsg:
-		m.updateStatus(msg.status)
+		m.status = msg.status
 		return m, nil
 
 	case tea.WindowSizeMsg:
 		x, y := timelineStyle.GetFrameSize()
 		m.vp = viewport.New(msg.Width-x, msg.Height-y)
-		m.vp.HighPerformanceRendering = true
-		return m, viewport.Sync(m.vp)
+		m.vp.HighPerformanceRendering = useHighPerformanceRenderer
 	}
-	return m, nil
+
+	return m, tea.Batch(cmds...)
 }
 
 func translateImage(url string, x, y int) string {
@@ -226,12 +219,12 @@ func translateImage(url string, x, y int) string {
 		return ""
 	}
 	ansi := img.Render()
-	return cview.TranslateANSI(ansi)
+	return ansi
 
 }
 
 func buildImage(url string, x, y int) (*ansimage.ANSImage, error) {
-	pix, err := ansimage.NewScaledFromURL(url, y, x, color.Transparent, ansimage.ScaleModeResize, ansimage.NoDithering)
+	pix, err := ansimage.NewScaledFromURL(url, y, x, color.Transparent, ansimage.ScaleModeFit, ansimage.NoDithering)
 	if err != nil {
 		return nil, err
 	}
