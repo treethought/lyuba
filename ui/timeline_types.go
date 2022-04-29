@@ -1,4 +1,4 @@
-package btui
+package ui
 
 import "github.com/mattn/go-mastodon"
 

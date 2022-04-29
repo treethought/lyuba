@@ -1,33 +1,50 @@
 package ui
 
 import (
+	"fmt"
 	"log"
 
 	md "github.com/JohannesKaufmann/html-to-markdown"
-	markdown "github.com/MichaelMure/go-term-markdown"
-	"github.com/kyokomi/emoji/v2"
+	"github.com/charmbracelet/glamour"
+	"github.com/kyokomi/emoji"
 	"github.com/mattn/go-mastodon"
-	"gitlab.com/tslocum/cview"
 )
 
 type Toot struct {
-	*cview.ListItem
 	status *mastodon.Status
 	app    *App
 }
 
+func (t *Toot) FilterValue() string {
+	return fmt.Sprintf("%s %s %s", t.status.Account.Username, t.status.Account.DisplayName, t.status.Content)
+}
+
+func (t *Toot) Title() string {
+	return t.header()
+}
+
+func (t *Toot) Description() string {
+	return formatContent(t.status.Content)
+}
+
 func formatContent(html string) string {
-	// opts := &md.Options{}
 	converter := md.NewConverter("", true, nil)
 
 	mdContent, err := converter.ConvertString(html)
 	if err != nil {
 		log.Fatal(err)
 	}
-	return mdContent
 
-	result := markdown.Render(mdContent, 80, 6)
-	return string(result)
+	g, err := glamour.NewTermRenderer(glamour.WithAutoStyle(), glamour.WithEmoji())
+	if err != nil {
+		return mdContent
+	}
+
+	out, err := g.Render(mdContent)
+	if err != nil {
+		return mdContent
+	}
+	return out
 
 }
 
@@ -46,30 +63,33 @@ func (t *Toot) header() string {
 	if t.IsFavorite() {
 		header += emoji.Sprint(" :heart:")
 	} else {
-		header += emoji.Sprint(" :white_heart:")
+		header += emoji.Sprint(" :blue_heart:")
+	}
+
+	if t.status.Reblog != nil {
+		header = emoji.Sprintf("%s  || :repeat_button:@%s", header, t.status.Reblog.Account.DisplayName)
 	}
 	return header
-
 }
 
 func NewToot(app *App, status *mastodon.Status) *Toot {
 
 	t := &Toot{
-		ListItem: cview.NewListItem(status.Account.DisplayName),
-		status:   status,
-		app:      app,
+		status: status,
+		app:    app,
 	}
-
-	content := formatContent(t.status.Content)
-	main := t.header()
-
-	if status.Reblog != nil {
-		main = emoji.Sprintf("%s  || :repeat_button:@%s", main, status.Reblog.Account.DisplayName)
-	}
-
-	t.SetMainText(main)
-	t.SetSecondaryText(content)
-	t.SetReference(t)
 
 	return t
+}
+
+func (m *Toot) View() string {
+	head := m.status.Account.DisplayName
+	content := formatContent(m.status.Content)
+
+	if m.status.Reblog != nil {
+		head = emoji.Sprintf("%s  :repeat_button:@%s", head, m.status.Reblog.Account.DisplayName)
+	}
+
+	return fmt.Sprintf("%s\n%s", head, content)
+
 }
