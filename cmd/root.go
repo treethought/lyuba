@@ -18,7 +18,8 @@ var rootCmd = &cobra.Command{
 	Use:   "masto",
 	Short: "mastodon tui",
 	Run: func(cmd *cobra.Command, args []string) {
-		app := ui.New()
+		app := ui.NewApp()
+		// app := ui.New()
 		app.Start()
 	},
 }
