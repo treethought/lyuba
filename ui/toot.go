@@ -59,6 +59,9 @@ func (t *Toot) IsFavorite() bool {
 
 func (t *Toot) header() string {
 	header := t.status.Account.DisplayName
+	if t.status.Reblog != nil {
+		header = t.status.Reblog.Account.DisplayName
+	}
 
 	if t.IsFavorite() {
 		header += emoji.Sprint(" :heart:")
@@ -67,7 +70,7 @@ func (t *Toot) header() string {
 	}
 
 	if t.status.Reblog != nil {
-		header = emoji.Sprintf("%s  || :repeat_button:@%s", header, t.status.Reblog.Account.DisplayName)
+		header = emoji.Sprintf("%s  :repeat_button:@%s", header, t.status.Account.DisplayName)
 	}
 	return header
 }

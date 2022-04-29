@@ -96,14 +96,20 @@ func (m Status) buildheader() string {
 	createdStyle := lipgloss.NewStyle().Align(lipgloss.Right).Padding(0, 0, 0, 5)
 
 	avatar := translateImage(status.Account.AvatarStatic, 8, 8)
+	name := status.Account.DisplayName
+	if m.status.Reblog != nil {
+		avatar = translateImage(status.Reblog.Account.AvatarStatic, 8, 8)
+		name = status.Reblog.Account.DisplayName
+
+	}
 
 	content = lipgloss.JoinHorizontal(lipgloss.Center,
 		accountStyle.Render(avatar),
-		accountStyle.Render(status.Account.DisplayName),
+		accountStyle.Render(name),
 	)
 
 	if m.status.Reblog != nil {
-		boostContent := emoji.Sprintf(" || :repeat_button:@%s", m.status.Reblog.Account.DisplayName)
+		boostContent := emoji.Sprintf(" :repeat_button: by @%s", m.status.Account.DisplayName)
 
 		content = lipgloss.JoinHorizontal(lipgloss.Center,
 			content,
