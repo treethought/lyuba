@@ -13,8 +13,6 @@ import (
 	"github.com/mattn/go-mastodon"
 )
 
-var statusStyle = lipgloss.NewStyle().BorderStyle(lipgloss.NormalBorder()).Padding(0).MarginBackground(lipgloss.Color("300"))
-
 const useHighPerformanceRenderer = true
 
 type Status struct {
@@ -56,19 +54,13 @@ func (m *Status) View() string {
 	if m.status == nil {
 		return "no status"
 	}
+	statusStyle := lipgloss.NewStyle().
+		Width(m.vp.Width).Height(m.vp.Height).
+		MaxHeight(m.vp.Height).MaxWidth(m.vp.Width).
+		BorderStyle(lipgloss.NormalBorder()).
+		Padding(0).MarginBackground(lipgloss.Color("300")).
 
-	// mdContent := formatContent(m.status.Content)
-	// lines := strings.Split(mdContent, "\n")
 	return statusStyle.Render(m.render())
-	return m.vp.View()
-	head := m.status.Account.DisplayName
-	content := formatContent(m.status.Content)
-
-	if m.status.Reblog != nil {
-		head = emoji.Sprintf("%s  :repeat_button:@%s", head, m.status.Reblog.Account.DisplayName)
-	}
-
-	return fmt.Sprintf("%s\n%s", head, content)
 
 }
 
@@ -98,7 +90,7 @@ func (m Status) buildheader() string {
 
 	accountStyle := lipgloss.NewStyle().Align(lipgloss.Left)
 	boostStyle := lipgloss.NewStyle().Align(lipgloss.Right).Padding(0, 0, 0, 2).Foreground(lipgloss.Color("128"))
-	createdStyle := lipgloss.NewStyle().Align(lipgloss.Right).Padding(0, 0, 0, 2)
+	createdStyle := lipgloss.NewStyle().Align(lipgloss.Right).Padding(0, 0, 0, 5)
 
 	avatar := translateImage(status.Account.AvatarStatic, 8, 8)
 
@@ -124,41 +116,58 @@ func (m Status) buildheader() string {
 	return content
 }
 
-func (m Status) buildMedia() string {
-	mediaStyle := lipgloss.NewStyle().Align(lipgloss.Right)
-	// w, h := m.vp.Width, m.vp.Width
+func buildMedia(status *mastodon.Status, x, y int) string {
 
 	content := ""
-	for _, m := range m.status.MediaAttachments {
+	for _, m := range status.MediaAttachments {
 		if m.Type == "image" {
 
 			// w = w - 5
 			// h = h - len(strings.Split(content, "\n")) - 5
 
-			img := translateImage(m.URL, 40, 40)
+			img := translateImage(m.URL, x, y)
 			content = fmt.Sprintf("%s\n%s", content, img)
 		}
 	}
-	return mediaStyle.Render(content)
+	return content
 }
 
 func (m *Status) render() string {
 	status := m.status
 
 	header := m.buildheader()
-	media := m.buildMedia()
-	content := formatContent(status.Content)
-
-	body := lipgloss.JoinHorizontal(lipgloss.Center, content, media)
-
-	content = lipgloss.JoinVertical(lipgloss.Top, header, body)
-
 	info := m.buildEngagements()
 
-	content = lipgloss.JoinVertical(lipgloss.Center,
-		content,
-		info,
-	)
+	bodyHeight := m.vp.Height - lipgloss.Height(header) - lipgloss.Height(info)
+
+	text := formatContent(status.Content)
+
+	textStyle := lipgloss.NewStyle().
+		Align(lipgloss.Left).
+		// Width(m.vp.Width / 2). //.Height(bodyHeight).
+		MaxWidth(m.vp.Width).MaxHeight(bodyHeight).
+		Padding(0).Margin(0).
+		BorderStyle(lipgloss.NormalBorder()).
+		Align(lipgloss.Center)
+
+	text = textStyle.Render(text)
+
+	media := buildMedia(m.status, m.vp.Width/3, bodyHeight)
+
+	mediaStyle := lipgloss.NewStyle().
+		Align(lipgloss.Center).
+		// Width(m.vp.Width / 2).
+		MaxWidth(m.vp.Width / 2).MaxHeight(bodyHeight).
+		Padding(0).Margin(0).
+		Align(lipgloss.Center)
+	// BorderStyle(lipgloss.NormalBorder())
+
+	media = mediaStyle.Render(media)
+
+	body := lipgloss.JoinHorizontal(lipgloss.Top, text, media)
+	body = lipgloss.NewStyle().MaxHeight(bodyHeight).Render(body)
+
+	content := lipgloss.JoinVertical(lipgloss.Top, header, info, body)
 	return content
 
 }
