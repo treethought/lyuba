@@ -27,8 +27,8 @@ func NewApp() *App {
 
 	status := NewStatus(app, nil)
 
-	box.AddNode(timeline, 100, 80)
-	box.AddNode(status, 100, 20)
+	box.AddNode(timeline, 100, 50)
+	box.AddNode(status, 100, 50)
 
 	app.boba.Add("box", box)
 	app.boba.Register("status", status)

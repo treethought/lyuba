@@ -24,7 +24,7 @@ func (t *Toot) Title() string {
 }
 
 func (t *Toot) Description() string {
-	return t.Content()
+	return formatContent(t.status.Content)
 }
 
 func formatContent(html string) string {
@@ -35,7 +35,12 @@ func formatContent(html string) string {
 		log.Fatal(err)
 	}
 
-	out, err := glamour.Render(mdContent, "dark")
+	g, err := glamour.NewTermRenderer(glamour.WithAutoStyle(), glamour.WithEmoji())
+	if err != nil {
+		return mdContent
+	}
+
+	out, err := g.Render(mdContent)
 	if err != nil {
 		return mdContent
 	}
@@ -58,17 +63,13 @@ func (t *Toot) header() string {
 	if t.IsFavorite() {
 		header += emoji.Sprint(" :heart:")
 	} else {
-		header += emoji.Sprint(" :white_heart:")
+		header += emoji.Sprint(" :blue_heart:")
 	}
 
 	if t.status.Reblog != nil {
 		header = emoji.Sprintf("%s  || :repeat_button:@%s", header, t.status.Reblog.Account.DisplayName)
 	}
 	return header
-}
-
-func (t *Toot) Content() string {
-	return formatContent(t.status.Content)
 }
 
 func NewToot(app *App, status *mastodon.Status) *Toot {

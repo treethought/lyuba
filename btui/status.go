@@ -17,35 +17,11 @@ var statusStyle = lipgloss.NewStyle().BorderStyle(lipgloss.NormalBorder()).Paddi
 
 const useHighPerformanceRenderer = true
 
-const img = "https://i.redd.it/65fmdbh1ja951.jpg"
-
 type Status struct {
 	status *mastodon.Status
 	vp     viewport.Model
 	app    *App
-	// img    *imgcat.Model
 }
-
-// func formatContent(html string) string {
-// 	converter := md.NewConverter("", true, nil)
-
-// 	mdContent, err := converter.ConvertString(html)
-// 	if err != nil {
-// 		log.Fatal(err)
-// 	}
-
-// 	g, err := glamour.NewTermRenderer(glamour.WithAutoStyle())
-// 	if err != nil {
-// 		return mdContent
-// 	}
-
-// 	out, err := g.Render(mdContent)
-// 	if err != nil {
-// 		return mdContent
-// 	}
-// 	return out
-
-// }
 
 type StatusMsg struct {
 	status *mastodon.Status
@@ -98,17 +74,17 @@ func (m *Status) View() string {
 
 func (m Status) buildEngagements() string {
 	status := m.status
-	replies := emoji.Sprintf(":speech_balloon: %d", status.RepliesCount)
-	boosts := emoji.Sprintf(":repeat_button: %d", status.ReblogsCount)
+	replies := emoji.Sprintf(":speech_balloon:%d", status.RepliesCount)
+	boosts := emoji.Sprintf(":repeat_button:%d", status.ReblogsCount)
 
 	likes := ""
 	if m.IsFavorite() {
 		likes += emoji.Sprintf(":heart: %d", status.FavouritesCount)
 	} else {
-		likes += emoji.Sprintf(":white_heart: %d", status.FavouritesCount)
+		likes += emoji.Sprintf(":blue_heart: %d", status.FavouritesCount)
 	}
 
-	return strings.Join([]string{replies, boosts, likes}, " | ")
+	return strings.Join([]string{replies, boosts, likes}, "  ")
 }
 
 func (m Status) buildheader() string {
@@ -149,7 +125,7 @@ func (m Status) buildheader() string {
 }
 
 func (m Status) buildMedia() string {
-	mediaStyle := lipgloss.NewStyle().Align(lipgloss.Center)
+	mediaStyle := lipgloss.NewStyle().Align(lipgloss.Right)
 	// w, h := m.vp.Width, m.vp.Width
 
 	content := ""
@@ -159,7 +135,7 @@ func (m Status) buildMedia() string {
 			// w = w - 5
 			// h = h - len(strings.Split(content, "\n")) - 5
 
-			img := translateImage(m.URL, 10, 10)
+			img := translateImage(m.URL, 40, 40)
 			content = fmt.Sprintf("%s\n%s", content, img)
 		}
 	}
@@ -173,7 +149,9 @@ func (m *Status) render() string {
 	media := m.buildMedia()
 	content := formatContent(status.Content)
 
-	content = lipgloss.JoinVertical(lipgloss.Top, header, media, content)
+	body := lipgloss.JoinHorizontal(lipgloss.Center, content, media)
+
+	content = lipgloss.JoinVertical(lipgloss.Top, header, body)
 
 	info := m.buildEngagements()
 

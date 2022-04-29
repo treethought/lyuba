@@ -16,10 +16,15 @@ require (
 	github.com/kyokomi/emoji v2.1.0+incompatible
 	github.com/kyokomi/emoji/v2 v2.2.8
 	github.com/mattn/go-mastodon v0.0.4
+	github.com/microcosm-cc/bluemonday v1.0.18 // indirect
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/spf13/cobra v1.1.1
 	github.com/spf13/viper v1.7.1
+	github.com/trashhalo/imgcat v1.2.0
 	github.com/treethought/boba v0.0.2
+	github.com/yuin/goldmark v1.4.11 // indirect
 	gitlab.com/tslocum/cbind v0.1.4
 	gitlab.com/tslocum/cview v1.5.3
+	golang.org/x/image v0.0.0-20220413100746-70e8d0d3baa9 // indirect
+	golang.org/x/net v0.0.0-20220420153159-1850ba15e1be // indirect
 )

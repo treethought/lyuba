@@ -3,7 +3,6 @@ package btui
 import (
 	"fmt"
 	"io"
-	"log"
 	"os/exec"
 	"runtime"
 	"strings"
@@ -12,18 +11,16 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/gdamore/tcell/v2"
 	"github.com/mattn/go-mastodon"
 )
 
-var timelineStyle = lipgloss.NewStyle() //.BorderStyle(lipgloss.NormalBorder())
-
-const listHeight = 14
+var timelineStyle = lipgloss.NewStyle().BorderStyle(lipgloss.NormalBorder())
 
 var (
-	tootItemStyle     = lipgloss.NewStyle().BorderStyle(lipgloss.NormalBorder()).Padding(0, 0, 0).Margin(0)
-	selectedItemStyle = tootItemStyle.Copy().BorderForeground(lipgloss.Color("170"))
+	tootItemStyle     = lipgloss.NewStyle().BorderStyle(lipgloss.NormalBorder()) //.Padding(0, 0, 0).Margin(0)
+	selectedItemStyle = tootItemStyle.Copy().BorderForeground(lipgloss.Color("170")).Padding(0).Margin(0)
 	paginationStyle   = list.DefaultStyles().PaginationStyle.PaddingLeft(4)
+	titleStyle        = list.DefaultStyles().Title.PaddingLeft(4).Align(lipgloss.Center)
 	helpStyle         = list.DefaultStyles().HelpStyle.PaddingLeft(4).PaddingBottom(1)
 	quitTextStyle     = lipgloss.NewStyle().Margin(1, 0, 2, 4)
 
@@ -66,11 +63,11 @@ type itemDelegate struct {
 	del list.DefaultDelegate
 }
 
-func (d itemDelegate) Height() int                               { return 3 } // d.del.Height() }
+func (d itemDelegate) Height() int                               { return d.del.Height() }
 func (d itemDelegate) Spacing() int                              { return d.del.Spacing() }
 func (d itemDelegate) Update(msg tea.Msg, m *list.Model) tea.Cmd { return d.del.Update(msg, m) }
 
-func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
+func (d itemDelegate) customRender(w io.Writer, m list.Model, index int, listItem list.Item) {
 	// perform default render
 	var b strings.Builder
 	d.del.Render(&b, m, index, listItem)
@@ -78,9 +75,10 @@ func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 	// then apply our styles to the rendered item
 	s := b.String()
 
-	width := timelineStyle.GetWidth()
+	width := m.Width()
 
 	fn := tootItemStyle.Copy().Width(width).Render
+
 	if index == m.Index() {
 		fn = func(s string) string {
 			return selectedItemStyle.Copy().Width(width).Render(s)
@@ -88,6 +86,9 @@ func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 	}
 
 	fmt.Fprintf(w, fn(s))
+}
+func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
+	d.del.Render(w, m, index, listItem)
 }
 
 func NewTimeline(app *App, ttype TimelineType) *Timeline {
@@ -97,19 +98,17 @@ func NewTimeline(app *App, ttype TimelineType) *Timeline {
 		del: list.NewDefaultDelegate(),
 	}
 
-	delegate.del.Styles.NormalTitle = headerStyle
-	delegate.del.Styles.SelectedTitle = headerStyle
-
-	delegate.del.Styles.NormalDesc = contentStyle.Inline((true))
-	delegate.del.Styles.SelectedDesc = contentStyle
+	delegate.del.Styles.NormalTitle = delegate.del.Styles.NormalTitle.Copy().Bold(true).BorderBottom(true)
+	delegate.del.Styles.NormalDesc = contentStyle.Inline(true)
+	delegate.del.Styles.SelectedDesc = contentStyle.Inline(true)
 
 	t := &Timeline{
-		list:  list.New(items, delegate, 0, 10),
+		list:  list.New(items, delegate, 0, 0),
 		app:   app,
 		ttype: ttype,
 	}
 	t.list.Title = ttype.String()
-	t.list.SetHeight(timelineStyle.GetHeight())
+	// t.list.SetHeight(timelineStyle.GetHeight())
 	t.list.AdditionalFullHelpKeys = func() []key.Binding {
 		return []key.Binding{
 			defaultTimelineKeyMap.favorite,
@@ -122,7 +121,7 @@ func NewTimeline(app *App, ttype TimelineType) *Timeline {
 }
 
 func (m *Timeline) Init() tea.Cmd {
-	return m.RefreshCmd
+	return tea.Batch(m.list.StartSpinner(), m.RefreshCmd)
 }
 
 func (m *Timeline) handleKeyBinding(msg tea.KeyMsg) (model tea.Model, cmd tea.Cmd) {
@@ -130,16 +129,21 @@ func (m *Timeline) handleKeyBinding(msg tea.KeyMsg) (model tea.Model, cmd tea.Cm
 	case key.Matches(msg, defaultTimelineKeyMap.refresh):
 		var cmds []tea.Cmd
 
-		cmds = append(cmds, m.list.SetItems([]list.Item{}), m.list.NewStatusMessage("refreshing"), m.RefreshCmd)
+		cmds = append(cmds, m.list.SetItems([]list.Item{}), m.list.StartSpinner(), m.list.NewStatusMessage("refreshing"), m.RefreshCmd)
 		return m, tea.Batch(cmds...)
 
 	case key.Matches(msg, defaultTimelineKeyMap.favorite):
-		var cmds []tea.Cmd
-		cmds = append(cmds, m.list.NewStatusMessage("favoriting toot"), m.FavoriteCmd, m.list.SetItems([]list.Item{}))
-		return m, tea.Batch(cmds...)
+		return m, tea.Batch(
+			m.list.NewStatusMessage("favoriting toot"),
+			m.FavoriteCmd,
+			m.list.SetItems([]list.Item{}),
+		)
 	case key.Matches(msg, defaultTimelineKeyMap.open):
 		var cmds []tea.Cmd
-		cmds = append(cmds, m.list.NewStatusMessage("opening in browser"), m.OpenCmd)
+
+		toot := m.GetCurrentToot()
+		msg := fmt.Sprintf("opening %s", toot.status.URL)
+		cmds = append(cmds, m.list.NewStatusMessage(msg), m.OpenCmd)
 		return m, tea.Batch(cmds...)
 	}
 	return m, nil
@@ -147,13 +151,13 @@ func (m *Timeline) handleKeyBinding(msg tea.KeyMsg) (model tea.Model, cmd tea.Cm
 
 func (m *Timeline) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 	switch msg := msg.(type) {
+
 	case tea.KeyMsg:
 		if msg.String() == "ctrl+c" {
 			return m, tea.Quit
 		}
 
 		if !m.list.SettingFilter() {
-
 			model, cmd = m.handleKeyBinding(msg)
 			if cmd != nil {
 				return model, cmd
@@ -161,14 +165,16 @@ func (m *Timeline) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 		}
 
 	case tea.WindowSizeMsg:
-		// h, v := timelineStyle.GetFrameSize()
-		// m.list.SetSize(msg.Width-h, msg.Height-v)
-		m.list.SetSize(msg.Width, msg.Height)
+		h, v := timelineStyle.GetFrameSize()
+		m.list.SetSize(msg.Width-h, msg.Height-v)
+		return m, m.list.NewStatusMessage(fmt.Sprintf("resized: %d %d", msg.Width, msg.Height))
 
 	case ErrorMsg:
 		return m, m.list.NewStatusMessage(fmt.Sprintf("failed to %s: %s", msg.action, msg.msg))
 
 	case TimelineMsg:
+		m.list.StopSpinner()
+		// current := m.list.Cursor()
 
 		items := []list.Item{}
 		for _, toot := range m.Toots {
@@ -184,79 +190,20 @@ func (m *Timeline) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 	var cmds []tea.Cmd
 	m.list, cmd = m.list.Update(msg)
 	cmds = append(cmds, cmd)
+
+	toot := m.GetCurrentToot()
+	if toot != nil {
+		statusMsg := StatusMsg{status: toot.status}
+		_, scmd := m.app.boba.Get("status").Update(statusMsg)
+		cmds = append(cmds, scmd)
+	}
+
 	return m, tea.Batch(cmds...)
 }
 
 func (m *Timeline) View() string {
+	return m.list.View()
 	return timelineStyle.Render(m.list.View())
-}
-
-func (t *Timeline) handleDelete(ev *tcell.EventKey) *tcell.EventKey {
-
-	// toot := t.GetCurrentToot()
-	// status := toot.status
-
-	// if t.app.client.IsOwnStatus(status) {
-	// 	t.app.Notify("Deleting toot!")
-	// 	t.app.client.Delete(status)
-	// 	t.app.FocusTimeline()
-	// 	return nil
-	// }
-	return ev
-}
-
-func (t *Timeline) handleRefresh(ev *tcell.EventKey) *tcell.EventKey {
-	// t.app.FocusTimeline()
-	return nil
-
-}
-
-func (t *Timeline) handleFollow(ev *tcell.EventKey) *tcell.EventKey {
-	toot := t.GetCurrentToot()
-	status := toot.status
-
-	// t.app.Notify("Following %s", status.Account.Acct)
-	t.app.client.Follow(status.Account.ID)
-	// t.app.FocusTimeline()
-	return nil
-
-}
-
-func (t *Timeline) handleUnfollow(ev *tcell.EventKey) *tcell.EventKey {
-	// toot := t.GetCurrentToot()
-	// status := toot.status
-
-	// t.app.Notify("Unfollowing %s", status.Account.Acct)
-	// t.app.client.Unfollow(status.Account.ID)
-	// t.app.FocusTimeline()
-	return nil
-
-}
-
-func (t *Timeline) handleLike(ev *tcell.EventKey) *tcell.EventKey {
-	toot := t.GetCurrentToot()
-	// status := toot.status
-
-	if toot.IsFavorite() {
-		// t.app.Notify("Unliking toot!")
-		// t.app.client.Unlike(status)
-		// t.app.FocusTimeline()
-		return nil
-	}
-
-	// t.app.Notify("Liking toot!")
-	// t.app.client.Like(status)
-	// t.app.FocusTimeline()
-	return nil
-}
-
-func (t *Timeline) handleBoost(ev *tcell.EventKey) *tcell.EventKey {
-	toot := t.GetCurrentToot()
-	status := toot.status
-
-	t.app.client.Boost(status)
-	// t.app.FocusTimeline()
-	return nil
 }
 
 func (t *Timeline) SetTimeline(ttype TimelineType) {
@@ -271,27 +218,17 @@ func (t *Timeline) GetCurrentToot() *Toot {
 	}
 	return toot
 }
-func (t *Timeline) SetCurrentToot(toot *Toot) {
-	// for i, item := range t.AddItem() {
-	// 	ref := item.GetReference()
-	// 	tootc, ok := ref.(*Toot)
-	// 	if !ok {
-	// 		continue
-	// 	}
-	// 	if tootc.status.ID == toot.status.ID {
-	// 		t.SetCurrentItem(i)
-	// 	}
-	// }
-}
 
 func (t *Timeline) OpenCmd() tea.Msg {
 	toot := t.GetCurrentToot()
 	if toot == nil {
 		return ErrorMsg{action: "get toot", msg: "selected item not a toot"}
-		return nil
 	}
 	status := toot.status
-	openbrowser(status.URL)
+	err := openbrowser(status.URL)
+	if err != nil {
+		return ErrorMsg{action: "open browser", msg: err.Error()}
+	}
 	return nil
 }
 
@@ -326,17 +263,7 @@ func (t *Timeline) RefreshCmd() tea.Msg {
 
 }
 
-func (t *Timeline) fillToots(toots []*mastodon.Status) {
-	t.list.SetItems([]list.Item{})
-	t.Toots = toots
-	for i, toot := range t.Toots {
-		tc := NewToot(t.app, toot)
-		t.list.InsertItem(i, tc)
-	}
-
-}
-
-func openbrowser(url string) {
+func openbrowser(url string) error {
 	var err error
 
 	switch runtime.GOOS {
@@ -349,8 +276,6 @@ func openbrowser(url string) {
 	default:
 		err = fmt.Errorf("unsupported platform")
 	}
-	if err != nil {
-		log.Fatal(err)
-	}
 
+	return err
 }
