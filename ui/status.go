@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/dustin/go-humanize"
 	"github.com/eliukblau/pixterm/pkg/ansimage"
 	"github.com/kyokomi/emoji"
 	"github.com/mattn/go-mastodon"
@@ -87,6 +88,8 @@ func (m Status) buildheader() string {
 	created := fmt.Sprintf("%02d:%02d %d-%02d-%02d",
 		ct.Hour(), ct.Minute(),
 		ct.Year(), ct.Month(), ct.Day())
+
+	created = humanize.Time(ct)
 
 	accountStyle := lipgloss.NewStyle().Align(lipgloss.Left)
 	boostStyle := lipgloss.NewStyle().Align(lipgloss.Right).Padding(0, 0, 0, 2).Foreground(lipgloss.Color("128"))
