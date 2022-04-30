@@ -56,7 +56,7 @@ type Timeline struct {
 	Toots  []*mastodon.Status
 	app    *App
 	ttype  TimelineType
-	// inputHandler *cbind.Configuration
+	media  string
 }
 
 type itemDelegate struct {
@@ -164,9 +164,13 @@ func (m *Timeline) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 			}
 		}
 
+	case RenderMediaMsg:
+		m.media = msg.media
+		return m, nil
+
 	case tea.WindowSizeMsg:
 		h, v := timelineStyle.GetFrameSize()
-		m.list.SetSize(msg.Width-h, msg.Height-v)
+		m.list.SetSize((msg.Width-h)/2, msg.Height-v)
 		return m, m.list.NewStatusMessage(fmt.Sprintf("resized: %d %d", msg.Width, msg.Height))
 
 	case ErrorMsg:
@@ -202,8 +206,24 @@ func (m *Timeline) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 }
 
 func (m *Timeline) View() string {
-	return m.list.View()
-	return timelineStyle.Render(m.list.View())
+	toot := m.GetCurrentToot()
+	if toot == nil {
+		return m.list.View()
+		return timelineStyle.Render(m.list.View())
+	}
+
+	media := m.media
+	mediaStyle := lipgloss.NewStyle().
+		Align(lipgloss.Center).
+		// Width(m.vp.Width / 2).
+		// MaxWidth(m.vp.Width / 2).MaxHeight(bodyHeight).
+		Padding(10, 10, 10, 10).Margin(0)
+
+	// tl := timelineStyle.Render(m.list.View())
+	media = mediaStyle.Render(media)
+
+	return lipgloss.JoinHorizontal(lipgloss.Top, m.list.View(), media)
+
 }
 
 func (t *Timeline) SetTimeline(ttype TimelineType) {
