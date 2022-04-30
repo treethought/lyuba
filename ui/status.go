@@ -66,6 +66,7 @@ func (m *Status) View() string {
 		MaxHeight(m.vp.Height).MaxWidth(m.vp.Width).
 		BorderStyle(lipgloss.NormalBorder()).
 		Padding(0).MarginBackground(lipgloss.Color("300")).
+		Align(lipgloss.Center)
 
 	return statusStyle.Render(m.content)
 
@@ -134,6 +135,7 @@ func (m Status) buildheader() string {
 }
 
 func buildMedia(status *mastodon.Status, x, y int) string {
+	num := len(status.MediaAttachments)
 
 	content := ""
 	for _, m := range status.MediaAttachments {
@@ -142,7 +144,7 @@ func buildMedia(status *mastodon.Status, x, y int) string {
 			// w = w - 5
 			// h = h - len(strings.Split(content, "\n")) - 5
 
-			img := translateImage(m.URL, x, y)
+			img := translateImage(m.URL, x/num, y/num)
 			content = fmt.Sprintf("%s\n%s", content, img)
 		}
 	}
@@ -183,7 +185,7 @@ func (m *Status) setContent() {
 
 	textStyle := lipgloss.NewStyle().
 		Align(lipgloss.Left).
-		// Width(m.vp.Width / 2). //.Height(bodyHeight).
+		Width(m.vp.Width / 2). //.Height(bodyHeight).
 		MaxWidth(m.vp.Width).MaxHeight(bodyHeight).
 		Padding(0).Margin(0).
 		BorderStyle(lipgloss.NormalBorder()).
@@ -219,13 +221,6 @@ func (m *Status) Init() tea.Cmd {
 
 func (m *Status) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	cmds := []tea.Cmd{}
-	if useHighPerformanceRenderer {
-		// Render (or re-render) the whole viewport. Necessary both to
-		// initialize the viewport and when the window is resized.
-		//
-		// This is needed for high-performance rendering only.
-		cmds = append(cmds, viewport.Sync(m.vp))
-	}
 	switch msg := msg.(type) {
 
 	case StatusMsg:
@@ -233,18 +228,24 @@ func (m *Status) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.avatar = ""
 		m.status = msg.status
 		m.setContent()
-		return m, m.setMediaCmd
+		cmds = append(cmds, m.setMediaCmd)
 
 	case RenderMediaMsg:
 		m.avatar = msg.avatar
 		m.media = msg.media
 		m.setContent()
-		return m, nil
 
 	case tea.WindowSizeMsg:
 		x, y := timelineStyle.GetFrameSize()
 		m.vp = viewport.New(msg.Width-x, msg.Height-y)
 		m.vp.HighPerformanceRendering = useHighPerformanceRenderer
+	}
+	if useHighPerformanceRenderer {
+		// Render (or re-render) the whole viewport. Necessary both to
+		// initialize the viewport and when the window is resized.
+		//
+		// This is needed for high-performance rendering only.
+		cmds = append(cmds, viewport.Sync(m.vp))
 	}
 
 	return m, tea.Batch(cmds...)
