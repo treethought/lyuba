@@ -17,13 +17,20 @@ import (
 const useHighPerformanceRenderer = true
 
 type Status struct {
-	status *mastodon.Status
-	vp     viewport.Model
-	app    *App
+	status  *mastodon.Status
+	vp      viewport.Model
+	app     *App
+	content string
+	avatar  string
+	media   string
 }
 
 type StatusMsg struct {
 	status *mastodon.Status
+}
+type RenderMediaMsg struct {
+	avatar string
+	media  string
 }
 
 func (m *Status) IsFavorite() bool {
@@ -45,7 +52,6 @@ func NewStatus(app *App, status *mastodon.Status) *Status {
 		status: status,
 		vp:     viewport.New(0, 0),
 		app:    app,
-		// img:    nil,
 	}
 
 	return t
@@ -61,7 +67,7 @@ func (m *Status) View() string {
 		BorderStyle(lipgloss.NormalBorder()).
 		Padding(0).MarginBackground(lipgloss.Color("300")).
 
-	return statusStyle.Render(m.render())
+	return statusStyle.Render(m.content)
 
 }
 
@@ -92,19 +98,21 @@ func (m Status) buildheader() string {
 	created = humanize.Time(ct)
 
 	accountStyle := lipgloss.NewStyle().Align(lipgloss.Left)
-	boostStyle := lipgloss.NewStyle().Align(lipgloss.Right).Padding(0, 0, 0, 2).Foreground(lipgloss.Color("128"))
-	createdStyle := lipgloss.NewStyle().Align(lipgloss.Right).Padding(0, 0, 0, 5)
+	boostStyle := lipgloss.NewStyle().Align(lipgloss.Right).
+		Padding(0, 0, 0, 2).
+		Foreground(lipgloss.Color("128"))
 
-	avatar := translateImage(status.Account.AvatarStatic, 8, 8)
+	createdStyle := lipgloss.NewStyle().
+		Align(lipgloss.Right).Padding(0, 0, 0, 5)
+
 	name := status.Account.DisplayName
 	if m.status.Reblog != nil {
-		avatar = translateImage(status.Reblog.Account.AvatarStatic, 8, 8)
 		name = status.Reblog.Account.DisplayName
 
 	}
 
 	content = lipgloss.JoinHorizontal(lipgloss.Center,
-		accountStyle.Render(avatar),
+		accountStyle.Render(m.avatar),
 		accountStyle.Render(name),
 	)
 
@@ -141,7 +149,29 @@ func buildMedia(status *mastodon.Status, x, y int) string {
 	return content
 }
 
-func (m *Status) render() string {
+func (m *Status) setMediaCmd() tea.Msg {
+	// TODO prbly move these to struct fields so we dont calc these
+	// strings and height twice
+	header := m.buildheader()
+	info := m.buildEngagements()
+
+	bodyHeight := m.vp.Height - lipgloss.Height(header) - lipgloss.Height(info)
+
+	media := ""
+	avatar := ""
+	if m.status != nil {
+		media = buildMedia(m.status, m.vp.Width/3, bodyHeight)
+		avatarUrl := m.status.Account.AvatarStatic
+		if m.status.Reblog != nil {
+			avatarUrl = m.status.Reblog.Account.AvatarStatic
+		}
+		avatar = translateImage(avatarUrl, 8, 8)
+	}
+	return RenderMediaMsg{media: media, avatar: avatar}
+
+}
+
+func (m *Status) setContent() {
 	status := m.status
 
 	header := m.buildheader()
@@ -161,24 +191,26 @@ func (m *Status) render() string {
 
 	text = textStyle.Render(text)
 
-	media := buildMedia(m.status, m.vp.Width/3, bodyHeight)
 
 	mediaStyle := lipgloss.NewStyle().
-		Align(lipgloss.Center).
+		Align(lipgloss.Right).
 		// Width(m.vp.Width / 2).
 		MaxWidth(m.vp.Width / 2).MaxHeight(bodyHeight).
 		Padding(0).Margin(0).
 		Align(lipgloss.Center)
 	// BorderStyle(lipgloss.NormalBorder())
 
-	media = mediaStyle.Render(media)
+	media := mediaStyle.Render(m.media)
 
 	body := lipgloss.JoinHorizontal(lipgloss.Top, text, media)
-	body = lipgloss.NewStyle().MaxHeight(bodyHeight).Render(body)
+	body = lipgloss.NewStyle().
+		MaxHeight(bodyHeight).
+		Align(lipgloss.Center).
+		Render(body)
 
 	content := lipgloss.JoinVertical(lipgloss.Top, header, info, body)
-	return content
 
+	m.content = content
 }
 
 func (m *Status) Init() tea.Cmd {
@@ -197,7 +229,16 @@ func (m *Status) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 
 	case StatusMsg:
+		m.media = ""
+		m.avatar = ""
 		m.status = msg.status
+		m.setContent()
+		return m, m.setMediaCmd
+
+	case RenderMediaMsg:
+		m.avatar = msg.avatar
+		m.media = msg.media
+		m.setContent()
 		return m, nil
 
 	case tea.WindowSizeMsg:
