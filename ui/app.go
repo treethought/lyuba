@@ -6,7 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/treethought/boba"
-	"github.com/treethought/mammut/mastodon"
+	"github.com/treethought/lyuba/mastodon"
 )
 
 // App is a wrapper around boba.App used to manage the applications models

@@ -1,4 +1,4 @@
-module github.com/treethought/mammut
+module github.com/treethought/lyuba
 
 go 1.15
 
