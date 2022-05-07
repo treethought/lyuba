@@ -244,8 +244,13 @@ func (t *Timeline) OpenCmd() tea.Msg {
 	if toot == nil {
 		return ErrorMsg{action: "get toot", msg: "selected item not a toot"}
 	}
-	status := toot.status
-	err := openbrowser(status.URL)
+
+	url := toot.status.URL
+
+	// strip /activity for non local urls
+	url = strings.ReplaceAll(url, "/activity", "")
+
+	err := openbrowser(url)
 	if err != nil {
 		return ErrorMsg{action: "open browser", msg: err.Error()}
 	}
