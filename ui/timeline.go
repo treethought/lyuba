@@ -35,6 +35,8 @@ type timelineKeyMap struct {
 	// Down key.Binding
 }
 
+type TriggerRefreshMsg struct{}
+
 var defaultTimelineKeyMap = timelineKeyMap{
 	refresh: key.NewBinding(
 		key.WithKeys("r"),                     // actual keybindings
@@ -133,10 +135,21 @@ func (m *Timeline) handleKeyBinding(msg tea.KeyMsg) (model tea.Model, cmd tea.Cm
 		return m, tea.Batch(cmds...)
 
 	case key.Matches(msg, defaultTimelineKeyMap.favorite):
+		toot := m.GetCurrentToot()
+		if toot == nil {
+			return m, m.list.NewStatusMessage("no toot selected")
+		}
+
+		if toot.IsFavorite() {
+			return m, tea.Batch(
+				m.list.NewStatusMessage("unfavoriting toot"),
+				m.UnfavoriteCmd(toot.status),
+			)
+		}
+
 		return m, tea.Batch(
 			m.list.NewStatusMessage("favoriting toot"),
-			m.FavoriteCmd,
-			m.list.SetItems([]list.Item{}),
+			m.FavoriteCmd(toot.status),
 		)
 	case key.Matches(msg, defaultTimelineKeyMap.open):
 		var cmds []tea.Cmd
@@ -175,6 +188,9 @@ func (m *Timeline) Update(msg tea.Msg) (model tea.Model, cmd tea.Cmd) {
 
 	case ErrorMsg:
 		return m, m.list.NewStatusMessage(fmt.Sprintf("failed to %s: %s", msg.action, msg.msg))
+
+	case TriggerRefreshMsg:
+		return m, m.RefreshCmd
 
 	case TimelineMsg:
 		m.list.StopSpinner()
@@ -256,27 +272,25 @@ func (t *Timeline) OpenCmd() tea.Msg {
 	}
 	return nil
 }
-
-func (t *Timeline) FavoriteCmd() tea.Msg {
-	toot := t.GetCurrentToot()
-	if toot == nil {
-		return nil
+func (t *Timeline) UnfavoriteCmd(status *mastodon.Status) tea.Cmd {
+	return func() tea.Msg {
+		_, err := t.app.client.Unlike(status)
+		if err != nil {
+			return ErrorMsg{action: "unlike", msg: err.Error()}
+		}
+		return TriggerRefreshMsg{}
 	}
-	status := toot.status
+}
 
-	if toot.IsFavorite() {
-		t.app.client.Unlike(status)
-		return tea.Batch(
-			t.list.NewStatusMessage("unfavoriting"),
-			t.RefreshCmd,
-		)
+func (t *Timeline) FavoriteCmd(status *mastodon.Status) tea.Cmd {
+
+	return func() tea.Msg {
+		_, err := t.app.client.Like(status)
+		if err != nil {
+			return ErrorMsg{action: "like", msg: err.Error()}
+		}
+		return TriggerRefreshMsg{}
 	}
-
-	t.app.client.Like(status)
-	return tea.Batch(
-		t.list.NewStatusMessage("favoriting toot!"),
-		t.RefreshCmd,
-	)
 }
 
 func (t *Timeline) RefreshCmd() tea.Msg {

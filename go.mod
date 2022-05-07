@@ -8,11 +8,13 @@ require (
 	github.com/charmbracelet/bubbletea v0.20.0
 	github.com/charmbracelet/glamour v0.5.0
 	github.com/charmbracelet/lipgloss v0.5.0
+	github.com/dustin/go-humanize v1.0.0
 	github.com/eliukblau/pixterm/pkg/ansimage v0.0.0-20191210081756-9fb6cf8c2f75
 	github.com/kyokomi/emoji v2.1.0+incompatible
-	github.com/mattn/go-mastodon v0.0.4
+	github.com/mattn/go-mastodon v0.0.5-0.20220503131638-87278bda2ea5
 	github.com/microcosm-cc/bluemonday v1.0.18 // indirect
 	github.com/mitchellh/go-homedir v1.1.0
+	github.com/mritd/bubbles v0.0.0-20210825105013-cb7a572fb831
 	github.com/spf13/cobra v1.1.1
 	github.com/spf13/viper v1.7.1
 	github.com/treethought/boba v0.0.3

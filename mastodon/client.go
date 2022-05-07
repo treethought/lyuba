@@ -161,12 +161,12 @@ func (c Client) Reply(status *ma.Status, content string) *ma.Status {
 	return status
 }
 
-func (c Client) Like(status *ma.Status) *ma.Status {
+func (c Client) Like(status *ma.Status) (*ma.Status, error) {
 	status, err := c.m.Favourite(context.TODO(), status.ID)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
-	return status
+	return status, nil
 }
 func (c Client) Boost(status *ma.Status) *ma.Status {
 	status, err := c.m.Reblog(context.TODO(), status.ID)
@@ -176,12 +176,12 @@ func (c Client) Boost(status *ma.Status) *ma.Status {
 	return status
 }
 
-func (c Client) Unlike(status *ma.Status) *ma.Status {
+func (c Client) Unlike(status *ma.Status) (*ma.Status, error) {
 	status, err := c.m.Unfavourite(context.TODO(), status.ID)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
-	return status
+	return status, err
 
 }
 
