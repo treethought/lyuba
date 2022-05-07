@@ -107,8 +107,10 @@ func (m Status) buildheader() string {
 		Align(lipgloss.Right).Padding(0, 0, 0, 5)
 
 	name := status.Account.DisplayName
+	acct := status.Account.Acct
 	if m.status.Reblog != nil {
 		name = status.Reblog.Account.DisplayName
+		acct = status.Reblog.Account.Acct
 
 	}
 
@@ -126,8 +128,11 @@ func (m Status) buildheader() string {
 		)
 	}
 
+	acctStyle := lipgloss.NewStyle().Align(lipgloss.Center).MarginLeft(2)
+
 	content = lipgloss.JoinHorizontal(lipgloss.Center,
 		content,
+		acctStyle.Render(acct),
 		createdStyle.Render(created),
 	)
 
